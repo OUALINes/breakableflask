@@ -1,23 +1,54 @@
 name: Automatisation des tests DevSecOps
 on: push
+
 jobs:
   Dependances:
     runs-on: ubuntu-latest
     steps:
-      - name: Dependances
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Safety
         run: |
-          echo "ecrire ici le scrypt de contrôle des dépendances"
+          pip install --upgrade pip
+          pip install safety
+
+      - name: Scan requirements.txt
+        run: safety check --file=requirements.txt --full-report --output text || exit 1
+
   Dockerfile:
     runs-on: ubuntu-latest
     needs: Dependances
     steps:
-      - name: Test Dockerfile
-        run: |
-          echo "ecrire ici le scrypt de contrôle du Dockerfile"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile avec Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+      - name: Build Docker image
+        run: docker build -t breakableflask:test .
+
+      - name: Scan image avec Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: breakableflask:test
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
   Deploy:
     runs-on: ubuntu-latest
     needs: Dockerfile
     steps:
       - name: Deploy
-        run: |
-          echo "Rien à faire ici. Votre application est prête à être déployée"
+        run: echo "Rien à faire ici. Votre application est prête à être déployée"
